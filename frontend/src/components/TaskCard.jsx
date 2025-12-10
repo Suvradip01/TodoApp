@@ -1,59 +1,78 @@
 import { format } from 'date-fns';
+import { Card, CardContent } from '../components/ui/card';
+import { Button } from '../components/ui/button';
+import { Trash2, Pencil, Calendar } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 const TaskCard = ({ task, onEdit, onDelete, onToggleComplete }) => {
     const priorityColor = {
-        High: 'bg-red-100 text-red-800',
-        Medium: 'bg-yellow-100 text-yellow-800',
-        Low: 'bg-green-100 text-green-800',
+        High: 'bg-red-500/10 text-red-600 dark:text-red-400',
+        Medium: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400',
+        Low: 'bg-green-500/10 text-green-600 dark:text-green-400',
     };
 
     return (
-        <div className={`bg-white p-4 rounded-lg shadow-sm border-l-4 ${task.isCompleted ? 'border-green-500 opacity-75' : 'border-blue-500'} mb-3 transition hover:shadow-md`}>
-            <div className="flex justify-between items-start">
-                <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                        <input
-                            type="checkbox"
-                            checked={task.isCompleted}
-                            onChange={() => onToggleComplete(task)}
-                            className="w-5 h-5 text-green-600 rounded focus:ring-green-500 cursor-pointer"
-                        />
-                        <h3 className={`font-semibold text-lg ${task.isCompleted ? 'line-through text-gray-500' : 'text-gray-800'}`}>
-                            {task.title}
-                        </h3>
-                    </div>
-                    {task.description && <p className="text-gray-600 text-sm mb-2 ml-7">{task.description}</p>}
+        <motion.div
+            layout
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, x: -50, transition: { duration: 0.2 } }}
+            whileHover={{ scale: 1.01, transition: { duration: 0.2 } }}
+            transition={{ duration: 0.3 }}
+        >
+            <Card className={`mb-3 transition-colors hover:bg-muted/50 ${task.isCompleted ? 'opacity-70' : ''}`}>
+                <div className={`border-l-4 rounded-l-lg h-full absolute top-0 left-0 ${task.isCompleted ? 'border-green-500' : 'border-blue-500'}`}></div>
+                <CardContent className="p-4 flex justify-between items-start relative">
 
-                    <div className="flex items-center gap-4 ml-7 text-xs text-gray-500">
-                        {task.dueDate && (
-                            <span className="flex items-center gap-1">
-                                📅 {format(new Date(task.dueDate), 'MMM d, yyyy')}
+                    <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                            <input
+                                type="checkbox"
+                                checked={task.isCompleted}
+                                onChange={() => onToggleComplete(task)}
+                                className="w-5 h-5 accent-primary rounded cursor-pointer"
+                            />
+                            <h3 className={`font-semibold text-lg ${task.isCompleted ? 'line-through text-muted-foreground' : 'text-card-foreground'}`}>
+                                {task.title}
+                            </h3>
+                        </div>
+                        {task.description && <p className="text-muted-foreground text-sm mb-2 ml-7">{task.description}</p>}
+
+                        <div className="flex items-center gap-4 ml-7 text-xs text-muted-foreground">
+                            {task.dueDate && (
+                                <span className="flex items-center gap-1">
+                                    <Calendar className="h-3.5 w-3.5" /> {format(new Date(task.dueDate), 'MMM d, yyyy')}
+                                </span>
+                            )}
+                            <span className={`px-2 py-0.5 rounded-full ${priorityColor[task.priority] || 'bg-secondary'}`}>
+                                {task.priority}
                             </span>
-                        )}
-                        <span className={`px-2 py-0.5 rounded-full ${priorityColor[task.priority] || 'bg-gray-100'}`}>
-                            {task.priority}
-                        </span>
+                        </div>
                     </div>
-                </div>
 
-                <div className="flex gap-2 ml-2">
-                    <button
-                        onClick={() => onEdit(task)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
-                        title="Edit"
-                    >
-                        ✏️
-                    </button>
-                    <button
-                        onClick={() => onDelete(task._id)}
-                        className="p-1.5 text-red-600 hover:bg-red-50 rounded"
-                        title="Delete"
-                    >
-                        🗑️
-                    </button>
-                </div>
-            </div>
-        </div>
+                    <div className="flex gap-2 ml-2">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onEdit(task)}
+                            className="h-8 w-8 text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950"
+                            title="Edit"
+                        >
+                            <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onDelete(task._id)}
+                            className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+                            title="Delete"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </motion.div>
     );
 };
 

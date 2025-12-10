@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
+import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '../components/ui/card';
+import { motion } from 'framer-motion';
 
 const Register = () => {
     const [username, setUsername] = useState('');
@@ -22,52 +26,59 @@ const Register = () => {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-100">
-            <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-                <h2 className="text-2xl font-bold mb-6 text-center text-gray-800">Register for ToDo App</h2>
-                {error && <p className="text-red-500 mb-4 text-center">{error}</p>}
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-gray-700">Username</label>
-                        <input
-                            type="text"
-                            className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            required
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-gray-700">Email</label>
-                        <input
-                            type="email"
-                            className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            required
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-gray-700">Password</label>
-                        <input
-                            type="password"
-                            className="w-full px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                        />
-                    </div>
-                    <button
-                        type="submit"
-                        className="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 transition"
-                    >
-                        Register
-                    </button>
-                </form>
-                <p className="mt-4 text-center text-gray-600">
-                    Already have an account? <Link to="/login" className="text-blue-500 hover:underline">Login</Link>
-                </p>
-            </div>
+        <div className="min-h-screen flex items-center justify-center bg-background p-4 dark:bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] dark:from-primary/20 dark:via-background dark:to-background">
+            <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3 }}
+                className="w-full max-w-md"
+            >
+                <Card className="w-full shadow-lg border-primary/10">
+                    <CardHeader>
+                        <CardTitle className="text-2xl text-center">Register</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {error && <p className="text-destructive mb-4 text-center text-sm">{error}</p>}
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium">Username</label>
+                                <Input
+                                    type="text"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    required
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium">Email</label>
+                                <Input
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    required
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium">Password</label>
+                                <Input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
+                                />
+                            </div>
+                            <Button type="submit" className="w-full">
+                                Register
+                            </Button>
+                        </form>
+                    </CardContent>
+                    <CardFooter className="justify-center">
+                        <p className="text-sm text-muted-foreground">
+                            Already have an account? <Link to="/login" className="text-primary hover:underline">Login</Link>
+                        </p>
+                    </CardFooter>
+                </Card>
+            </motion.div>
         </div>
     );
 };
