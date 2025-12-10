@@ -4,12 +4,42 @@ const { protect } = require('../middleware/authMiddleware');
 const Todo = require('../models/Todo');
 
 // @route   GET /api/todos
-// @desc    Get all user todos
+// @desc    Get all user todos with pagination, filtering, and sorting
 // @access  Private
 router.get('/', protect, async (req, res) => {
     try {
-        const todos = await Todo.find({ user: req.user.id }).sort({ dueDate: 1 }); // Sort by due date ascending
-        res.json(todos);
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+
+        const { sortBy, order, priority, isCompleted, dueDate } = req.query;
+
+        // Filtering
+        const filter = { user: req.user.id };
+        if (priority) filter.priority = priority;
+        if (isCompleted !== undefined) filter.isCompleted = isCompleted === 'true';
+
+        // Sorting
+        const sortOptions = {};
+        if (sortBy) {
+            sortOptions[sortBy] = order === 'desc' ? -1 : 1;
+        } else {
+            sortOptions.dueDate = 1; // Default sort by due date ascending
+        }
+
+        const todos = await Todo.find(filter)
+            .sort(sortOptions)
+            .skip(skip)
+            .limit(limit);
+
+        const total = await Todo.countDocuments(filter);
+
+        res.json({
+            todos,
+            currentPage: page,
+            totalPages: Math.ceil(total / limit),
+            totalTodos: total
+        });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

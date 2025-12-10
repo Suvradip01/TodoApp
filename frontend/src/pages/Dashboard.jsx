@@ -23,18 +23,85 @@ const Dashboard = () => {
     const [summaryData, setSummaryData] = useState(null);
     const [loadingSummary, setLoadingSummary] = useState(false);
 
+    // Feature States
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const [sortBy, setSortBy] = useState('dueDate');
+    const [filterPriority, setFilterPriority] = useState('all');
+    const [loading, setLoading] = useState(false);
+
     useEffect(() => {
-        fetchTasks();
+        // Request Notification Permission
+        if ('Notification' in window && Notification.permission !== 'granted') {
+            Notification.requestPermission();
+        }
     }, []);
 
-    const fetchTasks = async () => {
+    useEffect(() => {
+        fetchTasks(1, true);
+    }, [sortBy, filterPriority]);
+
+    const fetchTasks = async (pageNum = 1, reset = false) => {
         try {
-            const res = await api.get('/todos');
-            setTasks(res.data);
+            setLoading(true);
+            const params = {
+                page: pageNum,
+                limit: 10,
+                sortBy,
+                order: 'asc', // Default ascending
+            };
+
+            if (filterPriority !== 'all') params.priority = filterPriority;
+
+            const res = await api.get('/todos', { params });
+
+            let newTasks = [];
+            let currentPage = 1;
+            let totalPages = 1;
+
+            if (Array.isArray(res.data)) {
+                // Fallback for legacy backend or no pagination
+                newTasks = res.data;
+
+                // Client-side Filtering Fallback
+                if (filterPriority !== 'all') {
+                    newTasks = newTasks.filter(t => t.priority === filterPriority);
+                }
+
+                // Client-side Sorting Fallback
+                if (sortBy === 'dueDate') {
+                    newTasks.sort((a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0));
+                } else if (sortBy === 'priority') {
+                    const order = { High: 1, Medium: 2, Low: 3 };
+                    newTasks.sort((a, b) => (order[a.priority] || 2) - (order[b.priority] || 2));
+                } else if (sortBy === 'isCompleted') {
+                    newTasks.sort((a, b) => (a.isCompleted === b.isCompleted ? 0 : a.isCompleted ? 1 : -1));
+                }
+            } else if (res.data && res.data.todos) {
+                newTasks = res.data.todos;
+                currentPage = res.data.currentPage;
+                totalPages = res.data.totalPages;
+            }
+
+            if (reset) {
+                setTasks(newTasks);
+                setPage(1);
+            } else {
+                setTasks(prev => [...prev, ...newTasks]);
+                setPage(pageNum);
+            }
+
+            setHasMore(currentPage < totalPages);
         } catch (error) {
             console.error('Error fetching tasks:', error);
-            toast.error("Failed to load tasks");
+            // toast.error("Failed to load tasks"); // Optional: suppress if it's just a connection blip
+        } finally {
+            setLoading(false);
         }
+    };
+
+    const loadMore = () => {
+        fetchTasks(page + 1);
     };
 
     const handleCreateOrUpdate = async (e) => {
@@ -48,7 +115,10 @@ const Dashboard = () => {
                 toast.success("Task updated successfully!");
             } else {
                 const res = await api.post('/todos', newTask);
-                setTasks([...tasks, res.data]);
+                // If sorting by due date (default), we might want to refetch or just prepend. 
+                // For simplicity, let's prepend and let the user sort if needed, or better, refetch.
+                // Prepending might break sort order. Refetching is safer.
+                fetchTasks(1, true);
                 toast.success("New task created!");
             }
             setNewTask({ title: '', description: '', dueDate: '', priority: 'Medium' });
@@ -62,7 +132,7 @@ const Dashboard = () => {
         setNewTask({
             title: task.title,
             description: task.description || '',
-            dueDate: task.dueDate ? task.dueDate.split('T')[0] : '',
+            dueDate: task.dueDate ? task.dueDate.slice(0, 16) : '', // Format YYYY-MM-DDTHH:mm
             priority: task.priority
         });
         setIsEditing(true);
@@ -114,7 +184,7 @@ const Dashboard = () => {
         setSummaryModalOpen(true);
         setLoadingSummary(true);
         try {
-            // Get completed tasks from today
+            // Get completed tasks from today (locally filtered for now, or could fetch from backend)
             const completedToday = tasks
                 .filter(t => t.isCompleted && isToday(parseISO(t.updatedAt || t.createdAt)))
                 .map(t => `${t.title} (${t.description || 'no desc'})`);
@@ -133,11 +203,38 @@ const Dashboard = () => {
         }
     };
 
-    // Grouping Tasks
-    const todayTasks = tasks.filter(t => !t.isCompleted && t.dueDate && isToday(parseISO(t.dueDate)));
-    const upcomingTasks = tasks.filter(t => !t.isCompleted && t.dueDate && isFuture(parseISO(t.dueDate)));
-    const noDateTasks = tasks.filter(t => !t.isCompleted && !t.dueDate);
-    const completedTasks = tasks.filter(t => t.isCompleted);
+    // Check for local browser reminders check (client-side polling)
+    useEffect(() => {
+        const checkReminders = () => {
+            if (Notification.permission === 'granted') {
+                const now = new Date();
+                tasks.forEach(task => {
+                    if (!task.isCompleted && task.dueDate) {
+                        const due = new Date(task.dueDate);
+                        const diff = due - now;
+                        // Notify if due in 15 mins (approx 900000ms) and positive
+                        if (diff > 0 && diff <= 900000) {
+                            // Use a simple local storage flag to avoid repeated notifications for the same task in this session
+                            const notifiedKey = `notified-${task._id}`;
+                            if (!sessionStorage.getItem(notifiedKey)) {
+                                new Notification(`Reminder: ${task.title}`, {
+                                    body: `Due in ${Math.ceil(diff / 60000)} minutes!`,
+                                    icon: '/vite.svg' // optional
+                                });
+                                sessionStorage.setItem(notifiedKey, 'true');
+                            }
+                        }
+                    }
+                });
+            }
+        };
+
+        const interval = setInterval(checkReminders, 60000); // Check every minute
+        checkReminders(); // Check immediately on mount/update
+
+        return () => clearInterval(interval);
+    }, [tasks]);
+
 
     return (
         <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
@@ -202,7 +299,7 @@ const Dashboard = () => {
                                             <option value="High">High Priority</option>
                                         </select>
                                         <Input
-                                            type="date"
+                                            type="datetime-local"
                                             className=""
                                             value={newTask.dueDate}
                                             onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
@@ -234,62 +331,62 @@ const Dashboard = () => {
                     </Card>
                 </motion.div>
 
-                {/* Task Sections */}
-                <div className="space-y-8">
-                    {/* Today's Focus */}
-                    <section>
-                        <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
-                            <Sun className="h-5 w-5 text-orange-500" /> Today's Focus <span className="bg-primary/20 text-primary text-xs px-2 py-0.5 rounded-full">{todayTasks.length}</span>
-                        </h2>
-                        {todayTasks.length > 0 ? (
-                            <div className="grid gap-2">
-                                <AnimatePresence mode="popLayout">
-                                    {todayTasks.map(task => (
-                                        <TaskCard key={task._id} task={task} onEdit={handleEdit} onDelete={handleDelete} onToggleComplete={handleToggleComplete} />
-                                    ))}
-                                </AnimatePresence>
-                            </div>
-                        ) : (
-                            <p className="text-muted-foreground italic">No tasks due today.</p>
-                        )}
-                    </section>
-
-                    {/* Upcoming */}
-                    <section>
-                        <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
-                            <Calendar className="h-5 w-5 text-blue-500" /> Upcoming <span className="bg-secondary text-secondary-foreground text-xs px-2 py-0.5 rounded-full">{upcomingTasks.length + noDateTasks.length}</span>
-                        </h2>
-                        {upcomingTasks.length > 0 || noDateTasks.length > 0 ? (
-                            <div className="grid gap-2">
-                                <AnimatePresence mode="popLayout">
-                                    {[...upcomingTasks, ...noDateTasks].map(task => (
-                                        <TaskCard key={task._id} task={task} onEdit={handleEdit} onDelete={handleDelete} onToggleComplete={handleToggleComplete} />
-                                    ))}
-                                </AnimatePresence>
-                            </div>
-                        ) : (
-                            <p className="text-muted-foreground italic">No upcoming tasks.</p>
-                        )}
-                    </section>
-
-                    {/* Completed */}
-                    <section>
-                        <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
-                            <CheckCircle2 className="h-5 w-5 text-green-500" /> Completed <span className="bg-muted text-muted-foreground text-xs px-2 py-0.5 rounded-full">{completedTasks.length}</span>
-                        </h2>
-                        {completedTasks.length > 0 ? (
-                            <div className="grid gap-2 opacity-75 hover:opacity-100 transition">
-                                <AnimatePresence mode="popLayout">
-                                    {completedTasks.map(task => (
-                                        <TaskCard key={task._id} task={task} onEdit={handleEdit} onDelete={handleDelete} onToggleComplete={handleToggleComplete} />
-                                    ))}
-                                </AnimatePresence>
-                            </div>
-                        ) : (
-                            <p className="text-muted-foreground italic">No completed tasks yet.</p>
-                        )}
-                    </section>
+                {/* Filter and Sort Controls */}
+                <div className="flex flex-wrap gap-4 mb-6 items-center justify-between">
+                    <div className="flex gap-2 items-center">
+                        <span className="text-sm font-medium">Sort By:</span>
+                        <select
+                            className="px-3 py-1 bg-background border border-input rounded-md text-sm"
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value)}
+                        >
+                            <option value="dueDate">Due Date</option>
+                            <option value="priority">Priority</option>
+                            <option value="isCompleted">Status</option>
+                        </select>
+                    </div>
+                    <div className="flex gap-2 items-center">
+                        <span className="text-sm font-medium">Filter Priority:</span>
+                        <select
+                            className="px-3 py-1 bg-background border border-input rounded-md text-sm"
+                            value={filterPriority}
+                            onChange={(e) => setFilterPriority(e.target.value)}
+                        >
+                            <option value="all">All</option>
+                            <option value="High">High</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Low">Low</option>
+                        </select>
+                    </div>
                 </div>
+
+                {/* Task List */}
+                <div className="grid gap-2">
+                    <AnimatePresence mode="popLayout">
+                        {tasks.map(task => (
+                            <TaskCard key={task._id} task={task} onEdit={handleEdit} onDelete={handleDelete} onToggleComplete={handleToggleComplete} />
+                        ))}
+                    </AnimatePresence>
+                </div>
+
+                {/* Load More */}
+                {hasMore && (
+                    <div className="mt-8 flex justify-center">
+                        <Button variant="outline" onClick={loadMore} disabled={loading}>
+                            {loading ? 'Loading...' : 'Load More Tasks'}
+                        </Button>
+                    </div>
+                )}
+
+                {!hasMore && tasks.length > 0 && (
+                    <p className="text-center text-muted-foreground mt-8 italic">No more tasks.</p>
+                )}
+
+                {tasks.length === 0 && !loading && (
+                    <div className="text-center py-10">
+                        <p className="text-muted-foreground">No tasks found. Add one to get started!</p>
+                    </div>
+                )}
             </main>
 
             <SummaryModal

@@ -23,6 +23,10 @@ app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/todos', require('./routes/todoRoutes'));
 app.use('/api/ai', require('./routes/aiRoutes'));
 
+// Initialize Reminder Service
+const initReminders = require('./services/reminderService');
+initReminders();
+
 app.get('/', (req, res) => {
     res.send('API is running...');
 });
