@@ -20,8 +20,8 @@ const TaskCard = ({ task, onEdit, onDelete, onToggleComplete }) => {
             whileHover={{ scale: 1.01, transition: { duration: 0.2 } }}
             transition={{ duration: 0.3 }}
         >
-            <Card className={`mb-3 transition-colors hover:bg-muted/50 ${task.isCompleted ? 'opacity-70' : ''}`}>
-                <div className={`border-l-4 rounded-l-lg h-full absolute top-0 left-0 ${task.isCompleted ? 'border-green-500' : 'border-blue-500'}`}></div>
+            <Card className={`mb-3 transition-colors hover:bg-muted/50 relative group ${task.isCompleted ? 'opacity-70' : ''}`}>
+                <div className={`border-l-4 rounded-l-lg h-full absolute top-0 left-0 transition-opacity duration-200 opacity-0 group-hover:opacity-100 ${task.isCompleted ? 'border-green-500' : 'border-blue-500'}`}></div>
                 <CardContent className="p-4 flex justify-between items-start relative">
 
                     <div className="flex-1">

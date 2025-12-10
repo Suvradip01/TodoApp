@@ -149,7 +149,7 @@ const Dashboard = () => {
                         animate={{ opacity: 1, x: 0 }}
                         className="text-xl font-bold text-primary flex items-center gap-2"
                     >
-                        <Rocket className="h-6 w-6" /> ToDo GenAI
+                        <Rocket className="h-6 w-6" /> ToDo
                     </motion.h1>
                     <div className="flex items-center gap-4">
                         <span className="text-muted-foreground hidden sm:inline">Hello, {user.username}</span>
