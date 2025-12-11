@@ -9,7 +9,7 @@ const Todo = require('../models/Todo');
 router.get('/stats', protect, async (req, res) => {
     try {
         const todos = await Todo.find({ user: req.user.id })
-            .select('createdAt isCompleted')
+            .select('createdAt completedAt isCompleted')
             .sort({ createdAt: 1 });
         res.json(todos);
     } catch (error) {
@@ -104,7 +104,19 @@ router.put('/:id', protect, async (req, res) => {
             return res.status(401).json({ message: 'User not authorized' });
         }
 
-        const updatedTodo = await Todo.findByIdAndUpdate(req.params.id, req.body, {
+        // Create update object
+        let updateData = { ...req.body };
+
+        // Handle completedAt logic separately if isCompleted is being changed
+        if (req.body.isCompleted !== undefined) {
+            if (req.body.isCompleted && !todo.isCompleted) {
+                updateData.completedAt = new Date();
+            } else if (!req.body.isCompleted && todo.isCompleted) {
+                updateData.completedAt = null;
+            }
+        }
+
+        const updatedTodo = await Todo.findByIdAndUpdate(req.params.id, updateData, {
             new: true,
         });
 

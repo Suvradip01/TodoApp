@@ -3,31 +3,22 @@ import { Card, CardContent, Typography, useTheme } from '@mui/material';
 import { LineChart } from '@mui/x-charts/LineChart';
 import { axisClasses } from '@mui/x-charts/ChartsAxis';
 import { format, subDays, isSameDay, parseISO } from 'date-fns';
+
 import api from '../api/axios';
 
 const ActivityGraph = () => {
     const [dataset, setDataset] = useState([]);
     const theme = useTheme();
 
-    // Mock Data for "Empty State" visualization
-    const mockData = Array.from({ length: 7 }, (_, i) => ({
-        label: format(subDays(new Date(), 6 - i), 'EEE'),
-        created: Math.floor(Math.random() * 5) + 1,
-        completed: Math.floor(Math.random() * 4)
-    }));
-
     useEffect(() => {
         const fetchStats = async () => {
             try {
                 const res = await api.get('/todos/stats');
-                if (res.data && res.data.length > 0) {
-                    processData(res.data);
-                } else {
-                    setDataset(mockData); // Show mock data if no real data
-                }
+                console.log("ActivityGraph Fetched Data:", res.data); // DEBUG LOG
+                processData(res.data || []);
             } catch (error) {
                 console.error("Failed to load graph data", error);
-                setDataset(mockData);
+                processData([]);
             }
         };
         fetchStats();
@@ -46,18 +37,37 @@ const ActivityGraph = () => {
 
         todos.forEach(todo => {
             const createdDate = parseISO(todo.createdAt);
-            const dayStat = last7Days.find(d => isSameDay(d.date, createdDate));
-            if (dayStat) {
-                dayStat.created += 1;
-                if (todo.isCompleted) dayStat.completed += 1;
+            const createdDayStat = last7Days.find(d => isSameDay(d.date, createdDate));
+            if (createdDayStat) {
+                createdDayStat.created += 1;
+            }
+
+            if (todo.isCompleted && todo.completedAt) {
+                const completedDate = parseISO(todo.completedAt);
+                const completedDayStat = last7Days.find(d => isSameDay(d.date, completedDate));
+                if (completedDayStat) {
+                    completedDayStat.completed += 1;
+                }
+            } else if (todo.isCompleted && !todo.completedAt) {
+                // Fallback for old tasks that might not have completedAt
+                // We use updatedAt as a proxy or just ignore them to avoid "invalid" data
+                const updatedDate = parseISO(todo.updatedAt || todo.createdAt);
+                const fallbackStat = last7Days.find(d => isSameDay(d.date, updatedDate));
+                if (fallbackStat) fallbackStat.completed += 1;
             }
         });
 
         setDataset(last7Days);
     };
 
+
+
     const chartSetting = {
-        yAxis: [{ label: 'Tasks' }],
+        yAxis: [{
+            label: 'Tasks',
+            labelStyle: { fill: 'var(--chart-text)' },
+            tickLabelStyle: { fill: 'var(--chart-text)' },
+        }],
         series: [
             {
                 dataKey: 'created',
@@ -78,16 +88,17 @@ const ActivityGraph = () => {
         ],
         height: 300,
         sx: {
-            // Light Mode Defaults (can be overriden by parent context)
+            // Light Mode Defaults
             [`.${axisClasses.root}`]: {
                 [`.${axisClasses.tick}, .${axisClasses.line}`]: {
-                    stroke: '#64748b',
+                    stroke: 'var(--chart-text)',
                     strokeWidth: 1,
                 },
                 [`.${axisClasses.text}`]: {
-                    fill: '#64748b',
+                    fill: 'var(--chart-text)',
                 },
             },
+
             // Custom styling for the area gradients
             '& .MuiAreaElement-series-created': {
                 fill: "url('#createdGradient')",
@@ -106,6 +117,9 @@ const ActivityGraph = () => {
             color: '#0f172a', // Slate-900
             border: '1px solid #e2e8f0', // Border for light mode
 
+            // Define CSS Variable for Chart Text
+            '--chart-text': '#64748b',
+
             // DARK MODE CONFIGURATION
             '.dark &': {
                 background: 'linear-gradient(to bottom right, #000000, #0f172a)',
@@ -113,30 +127,52 @@ const ActivityGraph = () => {
                 border: '1px solid rgba(255,255,255,0.1)',
                 boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.5), 0 4px 6px -4px rgb(0 0 0 / 0.5)',
 
-                // Force Chart Text Colors in Dark Mode (applied from parent)
-                '& .MuiChartsLegend-series text, & .MuiChartsLegend-root text': { fill: '#ffffff !important' },
-                '& .MuiChartsAxis-tickLabel': { fill: '#ffffff !important' },
-                '& .MuiChartsAxis-label': { fill: '#ffffff !important' },
-                '& .MuiChartsAxis-line': { stroke: '#ffffff !important' },
-                '& .MuiChartsAxis-tick': { stroke: '#ffffff !important' },
-                '& text': { fill: '#ffffff !important' },
-            }
+                // Update CSS Variable for Dark Mode
+                '--chart-text': '#ffffff',
+            },
+
+            // Force Hide Default Legend (CSS Override)
+            '& .MuiChartsLegend-root': {
+                display: 'none !important',
+            },
         }} className="h-full group">
             <CardContent>
-                <Typography variant="h6" component="div" sx={{ mb: 2, fontWeight: 'bold', color: 'inherit' }}>
-                    Weekly Activity
-                    <Typography component="span" variant="caption" sx={{ display: 'block', color: 'text.secondary', fontWeight: 'normal', '.dark &': { color: '#ffffff !important' } }}>
-                        Tasks created vs completed
+                <div className="flex flex-row items-start justify-between mb-4">
+                    <Typography variant="h6" component="div" sx={{ fontWeight: 'bold', color: 'inherit' }}>
+                        Weekly Activity
+                        <Typography component="span" variant="caption" sx={{ display: 'block', color: 'text.secondary', fontWeight: 'normal', '.dark &': { color: '#ffffff !important' } }}>
+                            Tasks created vs completed
+                        </Typography>
                     </Typography>
-                </Typography>
+
+                    {/* Custom Legend */}
+                    <div className="flex items-center gap-4 text-sm mt-1">
+                        <div className="flex items-center gap-1.5">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#3b82f6' }}></div>
+                            <span className="text-slate-600 dark:text-white" style={{ color: 'var(--chart-text)' }}>Created</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#eab308' }}></div>
+                            <span className="text-slate-600 dark:text-white" style={{ color: 'var(--chart-text)' }}>Completed</span>
+                        </div>
+                    </div>
+                </div>
                 <div style={{ width: '100%', flexGrow: 1 }}>
                     <LineChart
                         dataset={dataset}
-                        xAxis={[{ scaleType: 'point', dataKey: 'label' }]}
+                        xAxis={[{
+                            scaleType: 'point',
+                            dataKey: 'label',
+                            tickLabelStyle: { fill: 'var(--chart-text)' },
+                            labelStyle: { fill: 'var(--chart-text)' },
+                        }]}
                         {...chartSetting}
                         margin={{ left: 30, right: 30, top: 30, bottom: 30 }}
                         grid={{ horizontal: true }}
                         slotProps={{
+                            legend: {
+                                hidden: true,
+                            },
                             popper: {
                                 sx: {
                                     '.MuiChartsTooltip-root': {

@@ -14,40 +14,47 @@ const transporter = nodemailer.createTransport({
 const sendReminders = async () => {
     try {
         const now = new Date();
-        // Widen the window to catch tasks that might have just passed (e.g. while restarting server)
-        // Check from 10 minutes AGO up to 10 minutes in FUTURE
-        const past = new Date(now.getTime() - 10 * 60000);
-        const future = new Date(now.getTime() + 10 * 60000);
+        // Target tasks due in exactly 10 minutes.
+        // We create a 2-minute window (10 +/- 1 min) to account for cron execution time
+        const startWindow = new Date(now.getTime() + 9 * 60000); // Now + 9 mins
+        const endWindow = new Date(now.getTime() + 11 * 60000); // Now + 11 mins
 
         console.log(`[DEBUG] Reminder Job Running at: ${now.toISOString()}`);
-        console.log(`[DEBUG] Looking for tasks between: ${past.toISOString()} and ${future.toISOString()}`);
+        console.log(`[DEBUG] Looking for tasks due between: ${startWindow.toISOString()} and ${endWindow.toISOString()}`);
 
         const todos = await Todo.find({
             dueDate: {
-                $gte: past,
-                $lte: future
+                $gte: startWindow,
+                $lte: endWindow
             },
-            isCompleted: false
+            isCompleted: false,
+            reminderSent: false // Ensure we haven't sent it already
         }).populate('user', 'email');
 
-        console.log(`[DEBUG] Found ${todos.length} tasks due.`);
+        console.log(`[DEBUG] Found ${todos.length} tasks due for reminder.`);
 
         for (const todo of todos) {
-            console.log(`[DEBUG] Processing task: "${todo.title}" for user: ${todo.user ? todo.user.email : 'No User Found'}`);
+            console.log(`[DEBUG] Processing reminder for task: "${todo.title}" (User: ${todo.user?.email})`);
 
             if (todo.user && todo.user.email) {
                 const mailOptions = {
                     from: process.env.EMAIL_USER,
                     to: todo.user.email,
-                    subject: `Reminder: Task "${todo.title}" is due soon!`,
-                    text: `Your task "${todo.title}" is due at ${todo.dueDate}. Please complete it soon!`
+                    subject: `Reminder: Task "${todo.title}" is due in 10 minutes!`,
+                    text: `Your task "${todo.title}" is due at ${new Date(todo.dueDate).toLocaleString()}. You have 10 minutes left!`
                 };
 
-                transporter.sendMail(mailOptions, (error, info) => {
+                // Send Email
+                transporter.sendMail(mailOptions, async (error, info) => {
                     if (error) {
-                        console.error('[ERROR] Failed to send email:', error);
+                        console.error(`[ERROR] Failed to send email for task "${todo.title}":`, error);
                     } else {
-                        console.log('[SUCCESS] Reminder email sent:', info.response);
+                        console.log(`[SUCCESS] Reminder email sent for task "${todo.title}":`, info.response);
+
+                        // Mark as sent to prevent duplicates
+                        todo.reminderSent = true;
+                        await todo.save();
+                        console.log(`[SUCCESS] Marked task "${todo.title}" as reminded.`);
                     }
                 });
             } else {

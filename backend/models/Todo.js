@@ -24,6 +24,13 @@ const TodoSchema = new mongoose.Schema({
     isCompleted: {
         type: Boolean,
         default: false
+    },
+    reminderSent: {
+        type: Boolean,
+        default: false
+    },
+    completedAt: {
+        type: Date
     }
 }, { timestamps: true });
 

@@ -25,7 +25,7 @@ const TaskCard = ({ task, onEdit, onDelete, onToggleComplete }) => {
             <Card className={`group relative border border-border/50 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden bg-card/60 backdrop-blur-sm ${task.isCompleted ? 'opacity-60' : 'opacity-100'}`}>
                 {/* Priority Indicator Strip */}
                 <div className={`absolute top-0 left-0 bottom-0 w-1 ${task.priority === 'High' ? 'bg-red-500' :
-                        task.priority === 'Medium' ? 'bg-yellow-500' : 'bg-blue-500'
+                    task.priority === 'Medium' ? 'bg-yellow-500' : 'bg-blue-500'
                     }`} />
 
                 <CardContent className="p-4 pl-6 flex items-start gap-4">
@@ -34,8 +34,8 @@ const TaskCard = ({ task, onEdit, onDelete, onToggleComplete }) => {
                         <div
                             onClick={() => onToggleComplete(task)}
                             className={`w-6 h-6 rounded-full border-2 flex items-center justify-center cursor-pointer transition-colors duration-300 ${task.isCompleted
-                                    ? 'bg-primary border-primary'
-                                    : 'border-muted-foreground/40 hover:border-primary'
+                                ? 'bg-primary border-primary'
+                                : 'border-muted-foreground/40 hover:border-primary'
                                 }`}
                         >
                             {task.isCompleted && (
