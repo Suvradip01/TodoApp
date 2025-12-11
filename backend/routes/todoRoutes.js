@@ -3,6 +3,20 @@ const router = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 const Todo = require('../models/Todo');
 
+// @route   GET /api/todos/stats
+// @desc    Get all todos for statistics (lightweight)
+// @access  Private
+router.get('/stats', protect, async (req, res) => {
+    try {
+        const todos = await Todo.find({ user: req.user.id })
+            .select('createdAt isCompleted')
+            .sort({ createdAt: 1 });
+        res.json(todos);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
 // @route   GET /api/todos
 // @desc    Get all user todos with pagination, filtering, and sorting
 // @access  Private

@@ -2,16 +2,21 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
 import TaskCard from '../components/TaskCard';
+import ActivityGraph from '../components/ActivityGraph';
 import SummaryModal from '../components/SummaryModal';
-import { isToday, isFuture, parseISO } from 'date-fns';
+import { isToday, isFuture, parseISO, format } from 'date-fns';
 import { ModeToggle } from '../components/mode-toggle';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Card, CardHeader, CardContent } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Rocket, Sparkles, Plus, Pencil, Sun, Calendar, CheckCircle2, LogOut } from 'lucide-react';
+import {
+    Rocket, Sparkles, Plus, Pencil, Search,
+    Calendar as CalendarIcon, Filter, SortAsc,
+    LayoutList, CheckCircle2, ListTodo, Clock, Loader2
+} from 'lucide-react';
 
 const Dashboard = () => {
     const { user, logout } = useAuth();
@@ -22,6 +27,7 @@ const Dashboard = () => {
     const [summaryModalOpen, setSummaryModalOpen] = useState(false);
     const [summaryData, setSummaryData] = useState(null);
     const [loadingSummary, setLoadingSummary] = useState(false);
+    const [isAddTaskOpen, setIsAddTaskOpen] = useState(false); // Collapsible add task
 
     // Feature States
     const [page, setPage] = useState(1);
@@ -31,7 +37,6 @@ const Dashboard = () => {
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        // Request Notification Permission
         if ('Notification' in window && Notification.permission !== 'granted') {
             Notification.requestPermission();
         }
@@ -44,40 +49,23 @@ const Dashboard = () => {
     const fetchTasks = async (pageNum = 1, reset = false) => {
         try {
             setLoading(true);
-            const params = {
-                page: pageNum,
-                limit: 10,
-                sortBy,
-                order: 'asc', // Default ascending
-            };
-
+            const params = { page: pageNum, limit: 10, sortBy, order: 'asc' };
             if (filterPriority !== 'all') params.priority = filterPriority;
 
             const res = await api.get('/todos', { params });
-
             let newTasks = [];
             let currentPage = 1;
             let totalPages = 1;
 
             if (Array.isArray(res.data)) {
-                // Fallback for legacy backend or no pagination
                 newTasks = res.data;
-
-                // Client-side Filtering Fallback
-                if (filterPriority !== 'all') {
-                    newTasks = newTasks.filter(t => t.priority === filterPriority);
-                }
-
-                // Client-side Sorting Fallback
-                if (sortBy === 'dueDate') {
-                    newTasks.sort((a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0));
-                } else if (sortBy === 'priority') {
+                if (filterPriority !== 'all') newTasks = newTasks.filter(t => t.priority === filterPriority);
+                if (sortBy === 'dueDate') newTasks.sort((a, b) => new Date(a.dueDate || 0) - new Date(b.dueDate || 0));
+                else if (sortBy === 'priority') {
                     const order = { High: 1, Medium: 2, Low: 3 };
                     newTasks.sort((a, b) => (order[a.priority] || 2) - (order[b.priority] || 2));
-                } else if (sortBy === 'isCompleted') {
-                    newTasks.sort((a, b) => (a.isCompleted === b.isCompleted ? 0 : a.isCompleted ? 1 : -1));
                 }
-            } else if (res.data && res.data.todos) {
+            } else if (res.data?.todos) {
                 newTasks = res.data.todos;
                 currentPage = res.data.currentPage;
                 totalPages = res.data.totalPages;
@@ -90,19 +78,15 @@ const Dashboard = () => {
                 setTasks(prev => [...prev, ...newTasks]);
                 setPage(pageNum);
             }
-
             setHasMore(currentPage < totalPages);
         } catch (error) {
             console.error('Error fetching tasks:', error);
-            // toast.error("Failed to load tasks"); // Optional: suppress if it's just a connection blip
         } finally {
             setLoading(false);
         }
     };
 
-    const loadMore = () => {
-        fetchTasks(page + 1);
-    };
+    const loadMore = () => fetchTasks(page + 1);
 
     const handleCreateOrUpdate = async (e) => {
         e.preventDefault();
@@ -114,14 +98,12 @@ const Dashboard = () => {
                 setEditId(null);
                 toast.success("Task updated successfully!");
             } else {
-                const res = await api.post('/todos', newTask);
-                // If sorting by due date (default), we might want to refetch or just prepend. 
-                // For simplicity, let's prepend and let the user sort if needed, or better, refetch.
-                // Prepending might break sort order. Refetching is safer.
+                await api.post('/todos', newTask);
                 fetchTasks(1, true);
                 toast.success("New task created!");
             }
             setNewTask({ title: '', description: '', dueDate: '', priority: 'Medium' });
+            setIsAddTaskOpen(false); // Close after adding
         } catch (error) {
             console.error('Error saving task:', error);
             toast.error("Something went wrong");
@@ -132,11 +114,12 @@ const Dashboard = () => {
         setNewTask({
             title: task.title,
             description: task.description || '',
-            dueDate: task.dueDate ? task.dueDate.slice(0, 16) : '', // Format YYYY-MM-DDTHH:mm
+            dueDate: task.dueDate ? task.dueDate.slice(0, 16) : '',
             priority: task.priority
         });
         setIsEditing(true);
         setEditId(task._id);
+        setIsAddTaskOpen(true);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
@@ -145,18 +128,12 @@ const Dashboard = () => {
             action: {
                 label: "Delete",
                 onClick: async () => {
-                    try {
-                        await api.delete(`/todos/${id}`);
-                        setTasks(tasks.filter(t => t._id !== id));
-                        toast.success("Task deleted");
-                    } catch (error) {
-                        toast.error("Failed to delete task");
-                    }
+                    await api.delete(`/todos/${id}`);
+                    setTasks(tasks.filter(t => t._id !== id));
+                    toast.success("Task deleted");
                 }
             },
-            cancel: {
-                label: "Cancel",
-            },
+            cancel: { label: "Cancel" },
         });
     };
 
@@ -165,17 +142,11 @@ const Dashboard = () => {
             const updatedTask = { ...task, isCompleted: !task.isCompleted };
             const res = await api.put(`/todos/${task._id}`, updatedTask);
             setTasks(tasks.map(t => t._id === task._id ? res.data : t));
-
             if (updatedTask.isCompleted) {
-                confetti({
-                    particleCount: 100,
-                    spread: 70,
-                    origin: { y: 0.6 }
-                });
-                toast.success("Task completed! Great job!");
+                confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+                toast.success("Task completed!");
             }
         } catch (error) {
-            console.error('Error updating task:', error);
             toast.error("Failed to update status");
         }
     };
@@ -184,207 +155,223 @@ const Dashboard = () => {
         setSummaryModalOpen(true);
         setLoadingSummary(true);
         try {
-            // Get completed tasks from today (locally filtered for now, or could fetch from backend)
             const completedToday = tasks
                 .filter(t => t.isCompleted && isToday(parseISO(t.updatedAt || t.createdAt)))
-                .map(t => `${t.title} (${t.description || 'no desc'})`);
-
-            if (completedToday.length === 0) {
-                setSummaryData({ content: "You haven't completed any tasks today yet! Go crush it!" });
-            } else {
-                const res = await api.post('/ai/summarize', { tasks: completedToday });
-                setSummaryData(res.data);
-            }
+                .map(t => `${t.title}`);
+            const res = completedToday.length > 0
+                ? await api.post('/ai/summarize', { tasks: completedToday })
+                : { data: { content: "No tasks completed today yet." } };
+            setSummaryData(res.data);
         } catch (error) {
-            console.error('Error generating summary:', error);
-            setSummaryData({ content: "Failed to generate summary. Please try again." });
+            setSummaryData({ content: "Failed to generate summary." });
         } finally {
             setLoadingSummary(false);
         }
     };
 
-    // Check for local browser reminders check (client-side polling)
-    useEffect(() => {
-        const checkReminders = () => {
-            if (Notification.permission === 'granted') {
-                const now = new Date();
-                tasks.forEach(task => {
-                    if (!task.isCompleted && task.dueDate) {
-                        const due = new Date(task.dueDate);
-                        const diff = due - now;
-                        // Notify if due in 15 mins (approx 900000ms) and positive
-                        if (diff > 0 && diff <= 900000) {
-                            // Use a simple local storage flag to avoid repeated notifications for the same task in this session
-                            const notifiedKey = `notified-${task._id}`;
-                            if (!sessionStorage.getItem(notifiedKey)) {
-                                new Notification(`Reminder: ${task.title}`, {
-                                    body: `Due in ${Math.ceil(diff / 60000)} minutes!`,
-                                    icon: '/vite.svg' // optional
-                                });
-                                sessionStorage.setItem(notifiedKey, 'true');
-                            }
-                        }
-                    }
-                });
-            }
-        };
-
-        const interval = setInterval(checkReminders, 60000); // Check every minute
-        checkReminders(); // Check immediately on mount/update
-
-        return () => clearInterval(interval);
-    }, [tasks]);
-
+    // Stats for Hero Section
+    const pendingCount = tasks.filter(t => !t.isCompleted).length;
+    const completedCount = tasks.filter(t => t.isCompleted).length;
 
     return (
-        <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
-            {/* Navbar */}
-            <nav className="bg-card shadow-sm sticky top-0 z-10 border-b border-border">
-                <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
-                    <motion.h1
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="text-xl font-bold text-primary flex items-center gap-2"
-                    >
-                        <Rocket className="h-6 w-6" /> ToDo
-                    </motion.h1>
+        <div className="min-h-screen bg-background text-foreground transition-colors duration-500 relative">
+            {/* Decorative Ambient Background */}
+            <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+                <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[100px]" />
+                <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-500/5 rounded-full blur-[100px]" />
+            </div>
+
+            {/* Floating Navbar */}
+            <motion.nav
+                initial={{ y: -20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                className="sticky top-4 z-50 mx-auto max-w-6xl px-4"
+            >
+                <div className="bg-background/70 backdrop-blur-xl border border-border/40 shadow-lg rounded-2xl px-6 py-3 flex justify-between items-center">
+                    <div className="flex items-center gap-2 font-bold text-xl tracking-tight">
+                        <div className="bg-primary/10 p-2 rounded-lg text-primary">
+                            <Rocket className="h-5 w-5" />
+                        </div>
+                        ToDo
+                    </div>
                     <div className="flex items-center gap-4">
-                        <span className="text-muted-foreground hidden sm:inline">Hello, {user.username}</span>
+                        <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground mr-2">
+                            <span>Hello, <span className="text-foreground font-medium">{user.username}</span></span>
+                        </div>
                         <Button
-                            variant="secondary"
+                            size="sm"
+                            variant="default"
                             onClick={handleGenerateSummary}
-                            className="flex items-center gap-1"
+                            className="hidden sm:flex items-center gap-1.5 bg-gradient-to-r from-primary to-blue-600 hover:opacity-90 transition-opacity border-0"
                         >
-                            <Sparkles className="h-4 w-4" /> AI Summary
+                            <Sparkles className="h-3.5 w-3.5" /> AI Summary
                         </Button>
                         <ModeToggle />
-                        <Button variant="ghost" onClick={logout} className="text-muted-foreground hover:text-destructive gap-1">
-                            <LogOut className="h-4 w-4" /> Logout
+                        <Button variant="ghost" size="sm" onClick={logout} className="text-muted-foreground hover:text-destructive">
+                            <Clock className="h-4 w-4 mr-2 md:hidden" />
+                            <span className="hidden md:inline">Logout</span>
                         </Button>
                     </div>
                 </div>
-            </nav>
+            </motion.nav>
 
-            <main className="max-w-5xl mx-auto px-4 py-8">
-                {/* Task Form */}
+            <main className="max-w-4xl mx-auto px-4 py-8 relative z-10">
+                {/* Hero Stats Section */}
                 <motion.div
-                    initial={{ opacity: 0, y: -20 }}
+                    initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="mb-8"
+                    transition={{ delay: 0.1 }}
+                    className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10"
                 >
-                    <Card>
-                        <CardHeader>
-                            <h2 className="text-lg font-semibold flex items-center gap-2">
-                                {isEditing ? <><Pencil className="h-5 w-5" /> Edit Task</> : <><Plus className="h-5 w-5" /> Add New Task</>}
-                            </h2>
-                        </CardHeader>
-                        <CardContent>
-                            <form onSubmit={handleCreateOrUpdate} className="flex flex-col gap-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <Input
-                                        type="text"
-                                        placeholder="What needs to be done?"
-                                        value={newTask.title}
-                                        onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-                                        required
-                                    />
-                                    <div className="flex gap-2">
-                                        <select
-                                            className="px-4 py-2 bg-background border border-input rounded-md ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                            value={newTask.priority}
-                                            onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })}
-                                        >
-                                            <option value="Low">Low Priority</option>
-                                            <option value="Medium">Medium Priority</option>
-                                            <option value="High">High Priority</option>
-                                        </select>
-                                        <Input
-                                            type="datetime-local"
-                                            className=""
-                                            value={newTask.dueDate}
-                                            onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-                                <textarea
-                                    placeholder="Description (optional)"
-                                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-                                    value={newTask.description}
-                                    onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
-                                />
-                                <div className="flex justify-end gap-2">
-                                    {isEditing && (
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            onClick={() => { setIsEditing(false); setNewTask({ title: '', description: '', dueDate: '', priority: 'Medium' }); }}
-                                        >
-                                            Cancel
-                                        </Button>
-                                    )}
-                                    <Button type="submit">
-                                        {isEditing ? 'Update Task' : 'Create Task'}
-                                    </Button>
-                                </div>
-                            </form>
-                        </CardContent>
-                    </Card>
+                    <div className="md:col-span-2 bg-gradient-to-br from-primary/10 to-blue-500/10 border border-primary/10 rounded-3xl p-6 flex flex-col justify-center">
+                        <h2 className="text-2xl font-bold mb-2">Ready to be productive?</h2>
+                        <p className="text-muted-foreground">You have <span className="font-semibold text-primary">{pendingCount} pending tasks</span>. Let's get them done.</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-card border border-border/50 rounded-3xl p-5 flex flex-col items-center justify-center shadow-sm">
+                            <span className="text-3xl font-bold text-primary">{tasks.length}</span>
+                            <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mt-1">Total</span>
+                        </div>
+                        <div className="bg-card border border-border/50 rounded-3xl p-5 flex flex-col items-center justify-center shadow-sm">
+                            <span className="text-3xl font-bold text-green-500">{completedCount}</span>
+                            <span className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mt-1">Done</span>
+                        </div>
+                    </div>
                 </motion.div>
 
-                {/* Filter and Sort Controls */}
-                <div className="flex flex-wrap gap-4 mb-6 items-center justify-between">
-                    <div className="flex gap-2 items-center">
-                        <span className="text-sm font-medium">Sort By:</span>
-                        <select
-                            className="px-3 py-1 bg-background border border-input rounded-md text-sm"
-                            value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value)}
-                        >
-                            <option value="dueDate">Due Date</option>
-                            <option value="priority">Priority</option>
-                            <option value="isCompleted">Status</option>
-                        </select>
-                    </div>
-                    <div className="flex gap-2 items-center">
-                        <span className="text-sm font-medium">Filter Priority:</span>
-                        <select
-                            className="px-3 py-1 bg-background border border-input rounded-md text-sm"
-                            value={filterPriority}
-                            onChange={(e) => setFilterPriority(e.target.value)}
-                        >
-                            <option value="all">All</option>
-                            <option value="High">High</option>
-                            <option value="Medium">Medium</option>
-                            <option value="Low">Low</option>
-                        </select>
-                    </div>
+                {/* Activity Graph - Full Width */}
+                <div className="mb-8">
+                    <ActivityGraph />
                 </div>
 
+                {/* Main Controls - Filter & Add */}
+                <div className="flex flex-col md:flex-row gap-4 justify-between items-center mb-6">
+                    <div className="flex gap-2">
+                        <div className="relative group">
+                            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                            <select
+                                className="pl-9 pr-4 py-2 bg-card border border-border/50 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-shadow cursor-pointer hover:border-border"
+                                value={filterPriority}
+                                onChange={(e) => setFilterPriority(e.target.value)}
+                            >
+                                <option value="all">All Priorities</option>
+                                <option value="High">High</option>
+                                <option value="Medium">Medium</option>
+                                <option value="Low">Low</option>
+                            </select>
+                        </div>
+                        <div className="relative group">
+                            <SortAsc className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                            <select
+                                className="pl-9 pr-4 py-2 bg-card border border-border/50 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-shadow cursor-pointer hover:border-border"
+                                value={sortBy}
+                                onChange={(e) => setSortBy(e.target.value)}
+                            >
+                                <option value="dueDate">Due Date</option>
+                                <option value="priority">Priority</option>
+                                <option value="isCompleted">Status</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <Button
+                        onClick={() => setIsAddTaskOpen(!isAddTaskOpen)}
+                        className={`rounded-xl transition-all duration-300 ${isAddTaskOpen ? 'bg-secondary text-secondary-foreground hover:bg-secondary/80' : ''}`}
+                    >
+                        {isAddTaskOpen ? 'Cancel' : <><Plus className="h-4 w-4 mr-2" /> Add Task</>}
+                    </Button>
+                </div>
+
+                {/* Collapsible Add Task Form */}
+                <AnimatePresence>
+                    {isAddTaskOpen && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden mb-8"
+                        >
+                            <Card className="border-primary/10 shadow-xl overflow-hidden">
+                                <CardContent className="p-6 bg-gradient-to-b from-card to-background">
+                                    <form onSubmit={handleCreateOrUpdate} className="flex flex-col gap-4">
+                                        <div className="flex flex-col gap-4">
+                                            <Input
+                                                type="text"
+                                                placeholder="What needs to be done?"
+                                                value={newTask.title}
+                                                onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+                                                required
+                                                className="text-lg font-medium border-0 border-b border-border rounded-none px-0 focus-visible:ring-0 focus-visible:border-primary bg-transparent"
+                                            />
+                                            <textarea
+                                                placeholder="Add details..."
+                                                className="w-full min-h-[60px] resize-none text-sm text-muted-foreground bg-transparent border-0 outline-none placeholder:text-muted-foreground/50"
+                                                value={newTask.description}
+                                                onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+                                            />
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-4 items-center justify-between pt-4 border-t border-border/30">
+                                            <div className="flex gap-2">
+                                                <div className="relative">
+                                                    <select
+                                                        className="pl-3 pr-8 py-1.5 bg-secondary/50 rounded-lg text-xs font-medium focus:outline-none cursor-pointer hover:bg-secondary transition-colors appearance-none"
+                                                        value={newTask.priority}
+                                                        onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })}
+                                                    >
+                                                        <option value="Low">Low Priority</option>
+                                                        <option value="Medium">Medium Priority</option>
+                                                        <option value="High">High Priority</option>
+                                                    </select>
+                                                </div>
+                                                <Input
+                                                    type="datetime-local"
+                                                    className="w-auto h-8 text-xs bg-secondary/50 border-0 rounded-lg"
+                                                    value={newTask.dueDate}
+                                                    onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
+                                                />
+                                            </div>
+                                            <Button type="submit" size="sm" className="rounded-lg">
+                                                {isEditing ? 'Update Task' : 'Create Task'}
+                                            </Button>
+                                        </div>
+                                    </form>
+                                </CardContent>
+                            </Card>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
                 {/* Task List */}
-                <div className="grid gap-2">
+                <div className="space-y-4">
                     <AnimatePresence mode="popLayout">
-                        {tasks.map(task => (
-                            <TaskCard key={task._id} task={task} onEdit={handleEdit} onDelete={handleDelete} onToggleComplete={handleToggleComplete} />
-                        ))}
+                        {tasks.length > 0 ? (
+                            tasks.map((task) => (
+                                <TaskCard key={task._id} task={task} onEdit={handleEdit} onDelete={handleDelete} onToggleComplete={handleToggleComplete} />
+                            ))
+                        ) : (
+                            !loading && (
+                                <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    className="text-center py-20"
+                                >
+                                    <div className="bg-secondary/30 h-20 w-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                        <ListTodo className="h-10 w-10 text-muted-foreground/50" />
+                                    </div>
+                                    <p className="text-muted-foreground">No tasks found. Add one to get started!</p>
+                                </motion.div>
+                            )
+                        )}
                     </AnimatePresence>
                 </div>
 
-                {/* Load More */}
-                {hasMore && (
+                {hasMore && tasks.length > 0 && (
                     <div className="mt-8 flex justify-center">
-                        <Button variant="outline" onClick={loadMore} disabled={loading}>
+                        <Button variant="ghost" onClick={loadMore} disabled={loading} className="text-muted-foreground hover:text-primary">
+                            {loading ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : null}
                             {loading ? 'Loading...' : 'Load More Tasks'}
                         </Button>
-                    </div>
-                )}
-
-                {!hasMore && tasks.length > 0 && (
-                    <p className="text-center text-muted-foreground mt-8 italic">No more tasks.</p>
-                )}
-
-                {tasks.length === 0 && !loading && (
-                    <div className="text-center py-10">
-                        <p className="text-muted-foreground">No tasks found. Add one to get started!</p>
                     </div>
                 )}
             </main>
