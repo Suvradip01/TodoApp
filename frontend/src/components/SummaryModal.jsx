@@ -1,11 +1,15 @@
 import { Button } from "./ui/button"
 import { Sparkles, X } from "lucide-react"
 
+// A simple Modal (Pop-up) component.
 const SummaryModal = ({ isOpen, onClose, summary, isLoading }) => {
+    // 1. If not open, render NOTHING (null). This is how we hide it.
     if (!isOpen) return null;
 
     return (
+        // The background overlay (fixed, covers screen, blurred)
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 transition-all duration-100 data-[state=closed]:animate-out data-[state=closed]:fade-out data-[state=open]:fade-in">
+            {/* The actual modal box */}
             <div className="bg-card text-card-foreground border rounded-lg shadow-xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in slide-in-from-bottom-5">
                 <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-4 flex justify-between items-center text-white">
                     <h3 className="text-xl font-semibold flex items-center gap-2"><Sparkles className="h-5 w-5" /> AI Daily Summary</h3>

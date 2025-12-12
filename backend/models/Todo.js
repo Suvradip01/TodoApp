@@ -1,10 +1,12 @@
 const mongoose = require('mongoose');
 
+// Schema: Blueprint for a "Todo Task"
 const TodoSchema = new mongoose.Schema({
+    // RELATIONSHIP: Link this task to a specific User
     user: {
-        type: mongoose.Schema.Types.ObjectId,
+        type: mongoose.Schema.Types.ObjectId, // Defines this field as an ID
         required: true,
-        ref: 'User'
+        ref: 'User' // Connects to the 'User' model (allows us to .populate() later)
     },
     title: {
         type: String,
@@ -28,6 +30,9 @@ const TodoSchema = new mongoose.Schema({
     reminderSent: {
         type: Boolean,
         default: false
+        // This flag acts as a "Lock". Once we send an email, we turn this to true.
+        // Even if the server restarts or the timing window overlaps, we check this flag
+        // before sending again. This guarantees exactly 1 email per task.
     },
     completedAt: {
         type: Date

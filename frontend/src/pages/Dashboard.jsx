@@ -20,16 +20,23 @@ import {
 
 const Dashboard = () => {
     const { user, logout } = useAuth();
+    // --------------------------------------------------------------------------------
+    // STATE MANAGEMENT (The "Memory" of the Component)
+    // --------------------------------------------------------------------------------
+    // 1. tasks: Stores the list of Todo items fetched from the backend.
+    // 2. newTask: Stores the form data (title, desc, etc.) while the user is typing.
     const [tasks, setTasks] = useState([]);
     const [newTask, setNewTask] = useState({ title: '', description: '', dueDate: '', priority: 'Medium' });
+
+    // 3. UI States: Controls modals, loading spinners, and edit mode.
     const [isEditing, setIsEditing] = useState(false);
     const [editId, setEditId] = useState(null);
     const [summaryModalOpen, setSummaryModalOpen] = useState(false);
     const [summaryData, setSummaryData] = useState(null);
     const [loadingSummary, setLoadingSummary] = useState(false);
-    const [isAddTaskOpen, setIsAddTaskOpen] = useState(false); // Collapsible add task
+    const [isAddTaskOpen, setIsAddTaskOpen] = useState(false);
 
-    // Feature States
+    // 4. Feature States: Pagination, Sorting, and Filtering
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
     const [sortBy, setSortBy] = useState('dueDate');
@@ -42,16 +49,27 @@ const Dashboard = () => {
         }
     }, []);
 
+    // --------------------------------------------------------------------------------
+    // USE EFFECT (The "Auto-Run" Logic)
+    // --------------------------------------------------------------------------------
+    // This runs automatically whenever 'sortBy' or 'filterPriority' changes (dependency array).
+    // It calls fetchTasks to get the new sorted/filtered list from the backend.
     useEffect(() => {
         fetchTasks(1, true);
     }, [sortBy, filterPriority]);
 
+    // --------------------------------------------------------------------------------
+    // API INTERACTION (Talking to the Backend)
+    // --------------------------------------------------------------------------------
+    // 'fetchTasks' sends a GET request to our Express server.
+    // It passes parameters like page number, sort order, and priority filter.
     const fetchTasks = async (pageNum = 1, reset = false) => {
         try {
             setLoading(true);
             const params = { page: pageNum, limit: 10, sortBy, order: 'asc' };
             if (filterPriority !== 'all') params.priority = filterPriority;
 
+            // 'api' is our customized axios instance (see src/api/axios.js)
             const res = await api.get('/todos', { params });
             let newTasks = [];
             let currentPage = 1;
@@ -346,6 +364,11 @@ const Dashboard = () => {
                 <div className="space-y-4">
                     <AnimatePresence mode="popLayout">
                         {tasks.length > 0 ? (
+                            // --------------------------------------------------------------------------------
+                            // RENDERING LISTS (The "Map" Function)
+                            // --------------------------------------------------------------------------------
+                            // We loop through the 'tasks' array and create a <TaskCard /> for each one.
+                            // The 'key' prop is CRITICAL for React performance (must be unique).
                             tasks.map((task) => (
                                 <TaskCard key={task._id} task={task} onEdit={handleEdit} onDelete={handleDelete} onToggleComplete={handleToggleComplete} />
                             ))

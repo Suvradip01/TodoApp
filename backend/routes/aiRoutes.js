@@ -20,18 +20,21 @@ router.post('/summarize', protect, async (req, res) => {
     }
 
     try {
+        // Construct the prompt for the AI
         const prompt = `Summarize the following tasks I completed today in a natural language, encouraging tone: ${tasks.join(', ')}`;
 
+        // Call Groq API (External Service) to get the AI response
         const chatCompletion = await groq.chat.completions.create({
             messages: [
                 {
-                    role: 'user',
+                    role: 'user', // We are the user asking the question
                     content: prompt,
                 },
             ],
-            model: 'llama-3.3-70b-versatile', // Updated model
+            model: 'llama-3.3-70b-versatile', // The specific "brain" we are using
         });
 
+        // Extract the actual answer from the complex response object
         const summaryContent = chatCompletion.choices[0]?.message?.content || "Could not generate summary.";
 
         // Save summary to DB

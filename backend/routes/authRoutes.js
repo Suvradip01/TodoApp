@@ -4,6 +4,11 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
 // Generate JWT
+// --------------------------------------------------------------------------------
+// JWT GENERATION
+// --------------------------------------------------------------------------------
+// This function creates a digital "Badge" (Token) for the user.
+// It contains their ID (encrypted) and expires in 30 days.
 const generateToken = (id) => {
     return jwt.sign({ id }, process.env.JWT_SECRET, {
         expiresIn: '30d',

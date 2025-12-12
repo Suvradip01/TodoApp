@@ -4,7 +4,11 @@ import { Button } from '../components/ui/button';
 import { Trash2, Pencil, Calendar, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
 
+// Component to display a single Task item.
+// We "destructure" the props directly in the function signature.
+// instead of props.task, props.onEdit, we use { task, onEdit ... }
 const TaskCard = ({ task, onEdit, onDelete, onToggleComplete }) => {
+    // Defines colors for the priority badge based on lookup
     const priorityColors = {
         High: 'bg-red-500/10 text-red-600 border-red-500/20',
         Medium: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20',

@@ -6,8 +6,11 @@ const Todo = require('../models/Todo');
 // @route   GET /api/todos/stats
 // @desc    Get all todos for statistics (lightweight)
 // @access  Private
+// note: "protect" argument makes sure only logged-in users can reach here!
 router.get('/stats', protect, async (req, res) => {
     try {
+        // Query: Find all Todos where 'user' matches the ID from the token (req.user.id).
+        // .select(...) tells Mongo to ONLY return specific fields (faster).
         const todos = await Todo.find({ user: req.user.id })
             .select('createdAt completedAt isCompleted')
             .sort({ createdAt: 1 });
@@ -24,21 +27,24 @@ router.get('/', protect, async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 10;
+        // PAGINATION MATH
+        // page 1, limit 10 -> skip 0
+        // page 2, limit 10 -> skip 10
         const skip = (page - 1) * limit;
 
         const { sortBy, order, priority, isCompleted, dueDate } = req.query;
 
-        // Filtering
-        const filter = { user: req.user.id };
+        // Filtering: Build a "filter" object dynamically
+        const filter = { user: req.user.id }; // ALWAYS filter by current user
         if (priority) filter.priority = priority;
         if (isCompleted !== undefined) filter.isCompleted = isCompleted === 'true';
 
-        // Sorting
+        // Sorting: Build a "sortOptions" object
         const sortOptions = {};
         if (sortBy) {
             sortOptions[sortBy] = order === 'desc' ? -1 : 1;
         } else {
-            sortOptions.dueDate = 1; // Default sort by due date ascending
+            sortOptions.dueDate = 1; // Default
         }
 
         const todos = await Todo.find(filter)

@@ -117,10 +117,23 @@ const ActivityGraph = () => {
             color: '#0f172a', // Slate-900
             border: '1px solid #e2e8f0', // Border for light mode
 
-            // Define CSS Variable for Chart Text
+            // Light Mode Defaults
+            // --------------------------------------------------------------------------------
+            // CSS VARIABLE STRATEGY
+            // --------------------------------------------------------------------------------
+            // We define a custom property '--chart-text' here.
+            // By default (Light Mode), it is set to Slate Gray (#64748b).
+            // All chart elements (axis, labels, legend) use this variable for their color.
+            // --------------------------------------------------------------------------------
             '--chart-text': '#64748b',
 
             // DARK MODE CONFIGURATION
+            // --------------------------------------------------------------------------------
+            // The '.dark &' selector targets this Card when a PARENT element (like <body>) has
+            // the class "dark". This is how Shadcn UI / next-themes works.
+            // When dark mode is active, we simply update the variable '--chart-text' to White.
+            // The chart automatically picks up the new color without needing complex React state!
+            // --------------------------------------------------------------------------------
             '.dark &': {
                 background: 'linear-gradient(to bottom right, #000000, #0f172a)',
                 color: '#ffffff',
@@ -132,6 +145,8 @@ const ActivityGraph = () => {
             },
 
             // Force Hide Default Legend (CSS Override)
+            // The chart library tries to show its own legend, but we built a custom one in the header.
+            // This CSS rule forces the library's legend to be invisible.
             '& .MuiChartsLegend-root': {
                 display: 'none !important',
             },

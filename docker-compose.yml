@@ -7,7 +7,7 @@ services:
     ports:
       - "27017:27017"
     volumes:
-      - mongo-data:/data/db
+      - mongo-data:/data/db # Persist data even if container stops!
 
   backend:
     build: ./backend
@@ -21,9 +21,9 @@ services:
     env_file:
       - ./backend/.env
     depends_on:
-      - mongo
+      - mongo # Wait for DB to start first
     volumes:
-      - ./backend:/app
+      - ./backend:/app # Live reload: Sync local folder to container
       - /app/node_modules
 
   frontend:
@@ -40,4 +40,4 @@ services:
       - /app/node_modules
 
 volumes:
-  mongo-data:
+  mongo-data: # A named volume to store database files permanently

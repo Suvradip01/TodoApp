@@ -14,13 +14,24 @@ const Login = () => {
     const { login } = useAuth();
     const navigate = useNavigate();
 
+    // --------------------------------------------------------------------------------
+    // FORM HANDLING
+    // --------------------------------------------------------------------------------
+    // This function runs when the user clicks "Sign In".
     const handleSubmit = async (e) => {
+        // 1. Prevent Default: Stops the page from refreshing (default HTML form behavior).
         e.preventDefault();
+
         setError('');
         setIsLoading(true);
+
+        // 2. Auth Context: calling the login function from our custom hook.
+        // It talks to the backend, gets the JWT token, and saves it.
         const res = await login(email, password);
+
         setIsLoading(false);
         if (res.success) {
+            // 3. Navigation: If successful, redirect to Dashboard ('/')
             navigate('/');
         } else {
             setError(res.message);

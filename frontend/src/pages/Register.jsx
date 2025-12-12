@@ -15,16 +15,23 @@ const Register = () => {
     const { register } = useAuth();
     const navigate = useNavigate();
 
+    // --------------------------------------------------------------------------------
+    // REGISTER LOGIC
+    // --------------------------------------------------------------------------------
     const handleSubmit = async (e) => {
-        e.preventDefault();
+        e.preventDefault(); // Stop page reload
         setError('');
         setIsLoading(true);
+
+        // Call the register function from AuthContext
+        // This creates a NEW user in the MongoDB database
         const res = await register(username, email, password);
+
         setIsLoading(false);
         if (res.success) {
-            navigate('/');
+            navigate('/'); // Redirect to Dashboard on success
         } else {
-            setError(res.message);
+            setError(res.message); // Show error message (e.g., "Email already exists")
         }
     };
 

@@ -1,23 +1,27 @@
 import { createContext, useState, useEffect, useContext } from 'react';
 import api from '../api/axios';
 
+// Create the context (a global state container)
 const AuthContext = createContext();
 
+// Custom hook to allow any component to easily use this context
 export const useAuth = () => useContext(AuthContext);
 
+// The Provider component wraps our entire App
 export const AuthProvider = ({ children }) => {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [user, setUser] = useState(null); // Stores the current logged-in user
+    const [loading, setLoading] = useState(true); // Don't render the app until we check for a token
 
+    // On App Start: Check if we already have a saved token/user in the browser
     useEffect(() => {
         const checkUser = async () => {
             const token = localStorage.getItem('token');
             const storedUser = localStorage.getItem('user');
 
             if (token && storedUser) {
-                setUser(JSON.parse(storedUser));
+                setUser(JSON.parse(storedUser)); // Restore user session
             }
-            setLoading(false);
+            setLoading(false); // Done checking
         };
         checkUser();
     }, []);

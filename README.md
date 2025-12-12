@@ -41,18 +41,66 @@ cd TodoApp
 ```
 
 ### 2. Environment Configuration
-You need to set up environment variables for the backend.
-Create a `.env` file in the `backend/` directory:
+
+To securely run the backend, you need to configure your environment variables. 
+
+**Step 1:** Create a `.env` file in the `backend/` directory.
+
+```bash
+# Windows (PowerShell)
+New-Item -Path "backend/.env" -ItemType File -Value "PORT=5000`r`nMONGO_URI=mongodb://localhost:27017/todoapp`r`nJWT_SECRET=secret`r`nEMAIL_USER=your_email@gmail.com`r`nEMAIL_PASS=your_app_password"
+```
+
+**Step 2:** Fill in your specific credentials in `backend/.env`.
 
 ```env
-# backend/.env
-
 PORT=5000
-MONGO_URI=mongodb://localhost:27017/todoapp  # Or your MongoDB Atlas Connection String
-JWT_SECRET=your_super_secret_jwt_key
-EMAIL_USER=your_email@gmail.com              # For sending reminders
-EMAIL_PASS=your_email_app_password           # Google App Password (if using Gmail)
+MONGO_URI=mongodb://localhost:27017/todoapp   # Connection string
+JWT_SECRET=your_super_secret_jwt_key           # Secret for securing user tokens
+EMAIL_USER=your_email@gmail.com                # Sender email for reminders
+EMAIL_PASS=your_email_app_password             # Google App Password (NOT your login password)
 ```
+
+---
+
+#### 🔑 Helper Guide: How to get these values
+
+> [!IMPORTANT]
+> Never commit your `.env` file to version control. It is already added to `.gitignore`.
+
+<details>
+<summary><strong>1. MongoDB URI (Database Connection)</strong></summary>
+
+- **Local (Easiest)**: Use `mongodb://localhost:27017/todoapp`. Requires MongoDB Community Server installed.
+- **Cloud (MongoDB Atlas)**:
+    1. Log in to [MongoDB Atlas](https://www.mongodb.com/cloud/atlas).
+    2. Create a free cluster -> Click **Connect**.
+    3. Select **Drivers** (Node.js).
+    4. Copy the string (e.g., `mongodb+srv://user:<password>@...`).
+    5. Replace `<password>` with your database user password.
+</details>
+
+<details>
+<summary><strong>2. JWT Secret (Security Key)</strong></summary>
+
+This is a random string used to sign session tokens.
+- **Option A**: Use any long random string (e.g., `mySuperSecretKey123!`).
+- **Option B (Secure)**: Generate one in your terminal:
+  ```bash
+  node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  ```
+</details>
+
+<details>
+<summary><strong>3. Email Credentials (For Reminders)</strong></summary>
+
+You cannot use your standard Gmail password. You must use an **App Password**.
+1. Go to your [Google Account Security](https://myaccount.google.com/security) page.
+2. Enable **2-Step Verification** (if not already on).
+3. Search for **"App Passwords"** in the search bar.
+4. Create a new App Password (custom name: "TodoApp").
+5. Copy the 16-character code into `EMAIL_PASS`.
+</details>
 
 ### 3. Run Locally (Manual)
 

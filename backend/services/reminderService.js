@@ -14,8 +14,15 @@ const transporter = nodemailer.createTransport({
 const sendReminders = async () => {
     try {
         const now = new Date();
-        // Target tasks due in exactly 10 minutes.
-        // We create a 2-minute window (10 +/- 1 min) to account for cron execution time
+        // --------------------------------------------------------------------------------
+        // LOGIC: "Exactly 10 Minutes Before"
+        // --------------------------------------------------------------------------------
+        // Time works in milliseconds in JavaScript. 60000 ms = 1 minute.
+        // We look for tasks where the 'dueDate' is between 9 and 11 minutes from "now".
+        // Why a range? Because the cron job runs every 1 minute.
+        // If we looked for EXACTLY 10 mins (e.g., 10:00:00), we might miss a task if the job runs at 10:00:01.
+        // A 2-minute window (9 to 11 mins) guarantees we catch it during one of the scans.
+        // --------------------------------------------------------------------------------
         const startWindow = new Date(now.getTime() + 9 * 60000); // Now + 9 mins
         const endWindow = new Date(now.getTime() + 11 * 60000); // Now + 11 mins
 
@@ -27,9 +34,9 @@ const sendReminders = async () => {
                 $gte: startWindow,
                 $lte: endWindow
             },
-            isCompleted: false,
-            reminderSent: false // Ensure we haven't sent it already
-        }).populate('user', 'email');
+            isCompleted: false,    // Don't remind for done tasks!
+            reminderSent: false    // CRITICAL: Only send if we haven't sent one yet. This prevents duplicates.
+        }).populate('user', 'email'); // .populate() gets the User details (like email) associated with the Todo
 
         console.log(`[DEBUG] Found ${todos.length} tasks due for reminder.`);
 
@@ -51,7 +58,14 @@ const sendReminders = async () => {
                     } else {
                         console.log(`[SUCCESS] Reminder email sent for task "${todo.title}":`, info.response);
 
-                        // Mark as sent to prevent duplicates
+                        // --------------------------------------------------------------------------------
+                        // PREVENT DUPLICATES (Idempotency)
+                        // --------------------------------------------------------------------------------
+                        // Since our window is 2 minutes wide, this job might pick up the SAME task twice
+                        // (once when it's due in 10m 30s, and again when it's due in 9m 30s).
+                        // To allow only ONE email, we mark "reminderSent = true" in the database immediately.
+                        // Next time the query runs, "reminderSent: false" will exclude this task.
+                        // --------------------------------------------------------------------------------
                         todo.reminderSent = true;
                         await todo.save();
                         console.log(`[SUCCESS] Marked task "${todo.title}" as reminded.`);
