@@ -25,8 +25,10 @@ router.get('/stats', protect, async (req, res) => {
 // @access  Private
 router.get('/', protect, async (req, res) => {
     try {
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
+        // Clamp pagination so a caller can't pass page=0/-5 or limit=100000
+        // and either break the skip math or pull the whole collection.
+        const page = Math.max(parseInt(req.query.page) || 1, 1);
+        const limit = Math.min(Math.max(parseInt(req.query.limit) || 10, 1), 100);
         // PAGINATION MATH
         // page 1, limit 10 -> skip 0
         // page 2, limit 10 -> skip 10
@@ -39,9 +41,24 @@ router.get('/', protect, async (req, res) => {
         if (priority) filter.priority = priority;
         if (isCompleted !== undefined) filter.isCompleted = isCompleted === 'true';
 
-        // Sorting: Build a "sortOptions" object
+        // dueDate filter: return tasks due on the given calendar day.
+        // Previously this query param was read but never applied.
+        if (dueDate) {
+            const start = new Date(dueDate);
+            if (isNaN(start.getTime())) {
+                return res.status(400).json({ message: 'Invalid dueDate; expected a date like 2025-01-31' });
+            }
+            start.setHours(0, 0, 0, 0);
+            const end = new Date(start);
+            end.setDate(end.getDate() + 1);
+            filter.dueDate = { $gte: start, $lt: end };
+        }
+
+        // Sorting: only allow known fields so an arbitrary ?sortBy= can't be
+        // used to probe index behaviour or sort on unindexed junk.
+        const ALLOWED_SORT_FIELDS = ['createdAt', 'updatedAt', 'dueDate', 'priority', 'title', 'isCompleted'];
         const sortOptions = {};
-        if (sortBy) {
+        if (sortBy && ALLOWED_SORT_FIELDS.includes(sortBy)) {
             sortOptions[sortBy] = order === 'desc' ? -1 : 1;
         } else {
             sortOptions.dueDate = 1; // Default
@@ -110,8 +127,14 @@ router.put('/:id', protect, async (req, res) => {
             return res.status(401).json({ message: 'User not authorized' });
         }
 
-        // Create update object
-        let updateData = { ...req.body };
+        // Only copy fields a client is allowed to change. Spreading req.body
+        // directly let a request reassign `user` (move someone else's task to
+        // yourself), overwrite `completedAt`/`reminderSent`, or set `_id`.
+        const ALLOWED_UPDATES = ['title', 'description', 'dueDate', 'priority', 'isCompleted'];
+        const updateData = {};
+        for (const key of ALLOWED_UPDATES) {
+            if (req.body[key] !== undefined) updateData[key] = req.body[key];
+        }
 
         // Handle completedAt logic separately if isCompleted is being changed
         if (req.body.isCompleted !== undefined) {
@@ -124,6 +147,7 @@ router.put('/:id', protect, async (req, res) => {
 
         const updatedTodo = await Todo.findByIdAndUpdate(req.params.id, updateData, {
             new: true,
+            runValidators: true, // enforce the priority enum on updates too
         });
 
         res.json(updatedTodo);
